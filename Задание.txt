@@ -1,0 +1,247 @@
+ Напиши сервера на java:
+ - Gateway (через него идут все запросы, как nginx, идёт): 
+   - http-клиент
+ - Auth (выпускает jwt для авторизации пользователей, хранил id пользователя, email, логин, хэш пароля)
+   - http-клиент
+ - Сервер с файлами (storage, хранилище файлов):
+   - http-клиент
+ - Notifier (оповещение владельца на email):
+   - http-клиент
+ 
+Интересует, конекрентно, подробно описанный Auth. 
+Опиши, что коннкретно делать?
+У меня есть ноут с Windows 10, JDK 21 и IntellijIDEA. Как создать в ней проект? Какие файлы? Где?
+  
+ 
+ - Gateway (через него идут все запросы, как nginx, идёт)
+ - Auth (выпускает jwt для авторизации пользователей, хранил id пользователя, email, логин, хэш пароля)
+ - Сервер с файлами (storage, хранилище файлов)
+ - Notifier (оповещение владельца на email)
+ 
+ Auth:
+  Получает Фамилию Имя email логин пароль, возвращает id пользователя 
+  
+  Логин: получает логин и пароль, возвращает jwt-token
+  
+  verify: получает jwt token , а возвращает id- пользователя
+  
+  getuserdata: принимает id-пользователя и jwt-token, возвращает Фамилию Имя логин email
+
+
+URRP-12283
+Есть виртуальная машина с Linux, ansible и Docker'ом. Есть BitBucket для хранения ansible-репозитория и TeamCity для выполнения.
+В Docker-контейнерах развёртнуты frontend-приложения (Javascript + nginx) и backend-приложения (Java, Springboot, Bootstrap...).
+Структура имеющегося ansible-репозитория:
+files
+images
+include
+inventories
+  cloud
+    ccl
+	  demo - тип стенда
+	    group_vars
+		  all.yml
+		  cadvisor.yml
+		  ccl.yml
+		  ...
+		host_vars
+		  5nt-integration-01.yml
+		  app-host-01.yml         - в этиф файлах указывается переменная ansible_host: 10.178.49.167 (или другой ip)
+		  ...
+		hosts.yml 
+		  с следующим содержанием:
+		   all:
+		     vars:
+			   ansible_password: "{{ ssh_pass }}"
+			 hosts:
+			   localhost:
+			     ansible_connection: local
+				 ansible_python_interpreter: python
+	  test
+	    group_vars
+		host_vars
+		hosts.yml
+	develop
+	ebg
+	fz214
+	infrastructure
+	lvr
+	msb
+	prom
+		group_vars
+		  all.yml
+		  cadvisor.yml
+		  ccl.yml
+		  ...
+		host_vars
+		  5nt-integration-01.yml
+		  app-host-01.yml         - в этиф файлах указывается переменная ansible_host: 10.178.49.167 (или другой ip)
+		  ...
+		hosts.yml 
+	release
+		group_vars
+		  all.yml
+		  cadvisor.yml
+		  ccl.yml
+		  ...
+		host_vars
+		  5nt-integration-01.yml
+		  app-host-01.yml         - в этиф файлах указывается переменная ansible_host: 10.178.49.167 (или другой ip)
+		  ...
+		hosts.yml 
+<...>
+roles
+scripts
+ test_infrastructure
+   infrastructure_check.yml - это - та самая задача на проверку работоспособности ansible, а так же хостов, которые он проверяет 
+     с содержимым, которое требуется дописать:
+---
+- name: "Basic Infrastructure Check"
+  hosts: "{{ target_hosts | default('all') }}"
+  gather_facts: true
+  vars:
+    mail_enabled: true
+    mail_to: "admin@example.com"
+    mail_from: "ansible@{{ ansible_domain | default('example.com') }}"
+    smtp_host: "smtp.example.com"
+    smtp_port: 25
+    docker_containers_expected:
+      - "frontend"
+      - "backend"
+    container_health_checks:  # Универсальные проверки для всех контейнеров
+      - port: 80
+        path: "/"
+      - port: 8080
+        path: "/health"
+  
+  tasks:
+    # 1. Проверка подключения к хосту
+    - name: "[1] Проверка подключения к хосту {{ ansible_host }}"
+      ansible.builtin.ping:
+      register: ping_result
+      ignore_errors: yes
+      changed_when: false
+    
+    # 2. Сбор информации о хосте
+    - block:
+      - name: "[2] Сбор системной информации"
+        ansible.builtin.set_fact:
+          host_info: |
+            IP: {{ ansible_host }}
+            ОС: {{ ansible_distribution }} {{ ansible_distribution_version }}
+            CPU: {{ ansible_processor_vcpus }} ядер
+            RAM: всего {{ ansible_memtotal_mb }} MB, свободно {{ ansible_memfree_mb }} MB
+            Диск: свободно {{ ansible_mounts[0].size_available | default('N/A') }} из {{ ansible_mounts[0].size_total | default('N/A') }}
+      
+      - name: "[3] Проверка загрузки CPU"
+        ansible.builtin.shell: "uptime | awk -F'[a-z]:' '{ print $2 }' | awk '{ print $1 }'"
+        register: cpu_load
+        changed_when: false
+      
+      - name: "[4] Проверка состояния Docker"
+        ansible.builtin.service:
+          name: docker
+          state: started
+        register: docker_service
+        changed_when: false
+      
+      # Универсальная проверка контейнеров
+      - block:
+        - name: "[5] Получение списка работающих контейнеров"
+          ansible.builtin.command: "docker ps --format '{{ '{{.Names}}' }}'"
+          register: running_containers
+          changed_when: false
+        
+        - name: "[6] Определение отсутствующих контейнеров"
+          ansible.builtin.set_fact:
+            missing_containers: "{{ docker_containers_expected | difference(running_containers.stdout_lines) }}"
+        
+        # Проверка доступности всех контейнеров
+        - name: "[7] Проверка доступности контейнеров"
+          ansible.builtin.uri:
+            url: "http://{{ ansible_host }}:{{ item.port }}{{ item.path }}"
+            return_content: yes
+            status_code: 200
+            timeout: 5
+          register: container_checks
+          ignore_errors: yes
+          changed_when: false
+          loop: "{{ container_health_checks }}"
+          loop_control:
+            label: "Port {{ item.port }}{{ item.path }}"
+        
+        rescue:
+          - name: "[DOCKER ERROR] Ошибка при проверке контейнеров"
+            ansible.builtin.set_fact:
+              docker_error: "Ошибка при работе с Docker"
+        
+        when: docker_service is success
+      
+      rescue:
+        - name: "[DOCKER FAILED] Docker не доступен"
+          ansible.builtin.set_fact:
+            docker_error: "Docker демон не работает"
+      
+      when: ping_result is success
+    
+    # Формирование отчета
+    - name: "[8] Формирование отчета о проблемах"
+      ansible.builtin.set_fact:
+        problem_report: |
+          ### Проблемы на {{ ansible_host }} ###
+          {% if ping_result is failed %}
+          - ? Хост недоступен!
+          {% else %}
+          - ? Хост доступен
+          {{ host_info }}
+          {% if docker_service is failed or docker_error is defined %}
+          - ? Проблемы с Docker: {{ docker_error | default('Демон не работает') }}
+          {% else %}
+          - ? Docker работает
+          {% if missing_containers | default([]) | length > 0 %}
+          - ? Отсутствуют контейнеры: {{ missing_containers | join(', ') }}
+          {% endif %}
+          {% if container_checks is defined %}
+            {% for check in container_checks.results %}
+              {% if check.status != 200 %}
+          - ? Контейнер на порту {{ check.item.port }} недоступен (HTTP {{ check.status | default('N/A') }})
+              {% else %}
+          - ? Контейнер на порту {{ check.item.port }} доступен
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+          {% endif %}
+          {% endif %}
+      run_once: true
+    
+    # Отправка уведомлений
+    - name: "[9] Отправка уведомления о проблемах"
+      ansible.builtin.mail:
+        host: "{{ smtp_host }}"
+        port: "{{ smtp_port }}"
+        to: "{{ mail_to }}"
+        from: "{{ mail_from }}"
+        subject: "{{ 'CRITICAL: ' if (ping_result is failed or docker_service is failed or docker_error is defined or missing_containers | default([]) | length > 0 or (container_checks is defined and container_checks.failed) else '' }}Статус {{ ansible_host }}"
+        body: "{{ problem_report }}"
+      when: 
+        - mail_enabled | bool
+        - ping_result is failed or 
+          docker_service is failed or 
+          docker_error is defined or 
+          missing_containers | default([]) | length > 0 or 
+          (container_checks is defined and container_checks.failed)
+      run_once: true
+     
+	 // допиши данный файл
+secrets
+templates
+vars
+.gitignore
+alertmanager.yml
+
+Допиши infrastructure_check.yml в соответствии с комментариями, а так же так, чтобы можно было подключить уведомления на почту о каких-либо проблемах.
+infrastructure_check.yml должен проверять подключение к ansible_host, к docker-контейнерам, проверять их доступность и работоспособность, загруженность, предоставлять
+системную информацию, а так же иметь возможность подключить ещё какие-либо проверки. Скорректируй плейбук так, чтобы в случае недоступности хоста и/или контейнера и/или приложения в нём, 
+на почту присылалось уведомление о недоступности оноего.
+
+

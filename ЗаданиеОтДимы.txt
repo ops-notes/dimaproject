@@ -1,0 +1,60 @@
+ Напиши сервера на java:
+ - Gateway (через него идут все запросы, как nginx, идёт): 
+   - http-клиент
+   - что ещё...
+ - Auth (выпускает jwt для авторизации пользователей, хранил id пользователя, email, логин, хэш пароля)
+   - http-клиент
+ - Сервер с файлами (storage, хранилище файлов):
+   - http-клиент
+ - Notifier (оповещение владельца на email):
+   - http-клиент
+ 
+Интересует, конекрентно, подробно описанный Auth. 
+Опиши, что коннкретно делать?
+У меня есть ноут с Windows 10, JDK 21 и IntellijIDEA. Как создать в ней проект? Какие файлы? Где?
+  
+ 
+ - Gateway (через него идут все запросы, как nginx, идёт)
+ - Auth (выпускает jwt для авторизации пользователей, хранил id пользователя, email, логин, хэш пароля)
+ - Сервер с файлами (storage, хранилище файлов)
+ - Notifier (оповещение владельца на email)
+ 
+ Auth:
+  Получает Фамилию Имя email логин пароль, возвращает id пользователя 
+  
+  Логин: получает логин и пароль, возвращает jwt-token
+  
+  verify: получает jwt token , а возвращает id- пользователя
+  
+  getuserdata: принимает id-пользователя и jwt-token, возвращает Фамилию Имя логин email
+  
+Структура проекта:
+
+auth-server/
+├── src/
+│   ├── main/
+│   │   ├── java/
+│   │   │   └── org/dimsservers/
+│   │   │       ├── Main.java
+│   │   │       ├── AuthServer.java
+│   │   │       ├── controllers/
+│   │   │       │   ├── AuthController.java
+│   │   │       │   └── UserController.java
+│   │   │       ├── models/
+│   │   │       │   ├── User.java
+│   │   │       │   └── AuthResponse.java
+│   │   │       ├── services/
+│   │   │       │   ├── AuthService.java
+│   │   │       │   ├── UserService.java
+│   │   │       │   └── JwtService.java
+│   │   │       └── repositories/
+│   │   │           └── UserRepository.java
+│   │   └── resources/
+│   │       ├── application.properties
+│   │       └── logback.xml
+│   └── test/
+│       └── java/
+│           └── org/dimsservers/
+├── build.gradle
+└── settings.gradle
+

@@ -1,0 +1,6 @@
+rootProject.name = '4servers'
+
+include 'gateway-service'
+include 'auth-service'
+include 'storage-service'
+include 'notifier-service'
