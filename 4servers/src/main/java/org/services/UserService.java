@@ -1,29 +1,16 @@
-package org.dimsservers.repositories;
+package org.dimaservers.services;
 
 import org.dimsservers.models.User;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
+import org.dimsservers.repositories.UserRepository;
 
-public class UserRepository {
-    private final Map<Integer, User> users = new HashMap<>();
-    private final AtomicInteger idGenerator = new AtomicInteger(1);
+public class UserService {
+    private final UserRepository userRepository;
 
-    public int save(User user) {
-        int id = idGenerator.getAndIncrement();
-        user.setId(id);
-        users.put(id, user);
-        return id;
+    public UserService() {
+        this.userRepository = new UserRepository();
     }
 
-    public User findById(int id) {
-        return users.get(id);
-    }
-
-    public User findByLogin(String login) {
-        return users.values().stream()
-                .filter(user -> user.getLogin().equals(login))
-                .findFirst()
-                .orElse(null);
+    public User getUserData(int userId) {
+        return userRepository.findById(userId);
     }
 }

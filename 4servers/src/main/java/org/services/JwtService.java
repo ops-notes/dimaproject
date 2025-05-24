@@ -1,4 +1,4 @@
-package org.dimsservers.services;
+package org.dimaservers.services;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
